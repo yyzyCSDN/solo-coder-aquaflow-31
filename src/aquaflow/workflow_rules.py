@@ -24,7 +24,7 @@ from .reservoir.turnover import State, project_age
 from .treatment.backwash import Filter, choose as choose_filter
 from .treatment.chlorine_ct import Segment, effective_ct
 from .treatment.coagulant import Jar, recommend
-from .work.confined import Permit, valid
+from .work.confined import Permit, deny_reasons
 
 
 def _dt(value: Any) -> datetime:
@@ -104,9 +104,10 @@ def evaluate(name: str, p: dict[str, Any]) -> dict[str, Any]:
         return {"decision": "release" if result > 0 else "hold", "value": result, "evidence": {"lots": len(rows)}}
     if name == "confined_permit":
         x = p["permit"]
-        permit = Permit(_dt(x["starts"]), _dt(x["ends"]), _dt(x["gas_test"]), str(x["attendant"]), str(x["entrant"]), str(x["rescue"]) if p.get("_role_policy") == "separate" else "" )
-        result = valid(permit, _dt(p["at"]), int(p["max_age"]))
-        return {"decision": "enter" if result else "deny", "value": result, "evidence": {"role_separation": permit.attendant != permit.entrant}}
+        permit = Permit(_dt(x["starts"]), _dt(x["ends"]), _dt(x["gas_test"]), str(x["attendant"]), str(x["entrant"]), str(x["rescue"]))
+        reasons = deny_reasons(permit, _dt(p["at"]), int(p["max_age"]))
+        result = not reasons
+        return {"decision": "enter" if result else "deny", "value": result, "evidence": {"role_separation": bool(permit.attendant) and bool(permit.entrant) and permit.attendant != permit.entrant}, "reasons": list(reasons)}
     if name == "outage_impact":
         rows = [Customer(str(x["account"]), str(x["node"]), bool(x["critical"]), int(x["population"])) for x in p["customers"]]
         result = summarize(rows, set(p["nodes"]))
